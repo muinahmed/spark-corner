@@ -1,0 +1,69 @@
+<header class="admin-header">
+  <div>
+    <a class="brand" href="/admin/dashboard">Spark <span>Corner</span></a>
+    <strong>{{FORM_TITLE}}</strong>
+  </div>
+  <nav>
+    <a href="/admin/dashboard">Dashboard</a>
+    <a href="/admin/products">Products</a>
+    <a href="/admin/categories">Categories</a>
+    <a href="/admin/orders">Orders</a>
+    <form method="POST" action="/admin/logout"><button class="link-button">Logout</button></form>
+  </nav>
+</header>
+
+<main class="admin-main">
+  <div class="page-title page-title-row">
+    <div><p class="eyebrow">Catalogue</p><h1>{{FORM_TITLE}}</h1></div>
+    <a class="btn btn-light" href="/admin/products">Back</a>
+  </div>
+
+  <form class="panel form-grid" method="POST" action="{{ACTION}}" enctype="multipart/form-data">
+    <label>Product name *
+      <input name="name" value="{{NAME}}" required>
+    </label>
+
+    <label>Category
+      <select name="category_id">
+        <option value="">Uncategorised</option>
+        {{CATEGORIES}}
+      </select>
+    </label>
+
+    <label>Description
+      <textarea name="description">{{DESCRIPTION}}</textarea>
+    </label>
+
+    <div class="form-two">
+      <label>Price (৳) *
+        <input type="number" name="price" min="0" step="0.01" value="{{PRICE}}" required>
+      </label>
+      <label>Stock *
+        <input type="number" name="stock" min="0" step="1" value="{{STOCK}}" required>
+      </label>
+    </div>
+
+    <label>SKU
+      <input name="sku" value="{{SKU}}">
+    </label>
+
+    <div class="panel nested">
+      <h2>Variant</h2>
+      <p class="muted">For multiple values, separate them with commas. Example: Small, Medium, Large.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variant name</th><th>Values</th></tr></thead>
+          <tbody>{{VARIANTS}}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <label>Product images
+  <input type="file" name="images" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+    </label>
+
+    {{CURRENT_IMAGE}}
+
+    <button class="btn" type="submit">Save product</button>
+  </form>
+</main>

@@ -1,0 +1,29 @@
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <nav><a class="active" href="/products">Shop</a><a href="/#about">About</a><a href="/#contact">Contact</a><a class="cart-link" href="/cart">Cart</a></nav>
+  </div>
+</header>
+
+<main class="container section">
+  <div class="page-title">
+    <p class="eyebrow">Collection</p>
+    <h1>Shop</h1>
+  </div>
+
+  <form class="search-bar" method="GET" action="/products">
+    <input name="q" value="{{SEARCH}}" placeholder="Search products...">
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <div class="category-links">
+    <a href="/products">All</a>
+    {{CATEGORIES}}
+  </div>
+
+  <div class="product-grid">{{PRODUCTS}}</div>
+
+{{PAGINATION}}
+</main>
+
+<footer><div class="container">© Spark Corner</div></footer>

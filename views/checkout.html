@@ -1,0 +1,35 @@
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <nav><a href="/products">Shop</a><a href="/#about">About</a><a href="/#contact">Contact</a><a class="cart-link" href="/cart">Cart</a></nav>
+  </div>
+</header>
+
+<main class="container section">
+  <div class="page-title"><p class="eyebrow">Almost there</p><h1>Checkout</h1></div>
+  <div class="checkout-grid">
+    <form class="panel" method="POST" action="/checkout">
+      <h2>Your details</h2>
+      <label>Full name *<input name="customer_name" required></label>
+      <label>Phone *<input name="phone" required></label>
+      <label>Email<input type="email" name="email"></label>
+      <label>Delivery address *<textarea name="address" required></textarea></label>
+      <label>Payment method *
+        <select name="payment_method" required>
+          <option value="Cash on Delivery">Cash on Delivery</option>
+          <option value="bKash">bKash</option>
+          <option value="Nagad">Nagad</option>
+        </select>
+      </label>
+      <button class="btn full" type="submit">Place order</button>
+    </form>
+
+    <aside class="panel">
+      <h2>Your order</h2>
+      <ul class="order-list">{{ITEMS}}</ul>
+      <div class="total-line"><span>Total</span><strong>৳{{TOTAL}}</strong></div>
+    </aside>
+  </div>
+</main>
+
+<footer><div class="container">© Spark Corner</div></footer>

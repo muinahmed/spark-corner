@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login — Spark Corner</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <p class="eyebrow">Administration</p>
+    <h1>Admin login</h1>
+    {{ERROR}}
+    <form method="POST" action="/admin/login">
+      <label>Username<input name="username" required autofocus></label>
+      <label>Password<input type="password" name="password" required></label>
+      <button class="btn full" type="submit">Login</button>
+    </form>
+    <p class="muted">Development login: admin / admin123</p>
+  </main>
+</body>
+</html>

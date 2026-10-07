@@ -1,0 +1,45 @@
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <nav><a class="active" href="/products">Shop</a><a href="/#about">About</a><a href="/#contact">Contact</a><a class="cart-link" href="/cart">Cart</a></nav>
+  </div>
+</header>
+
+<main class="container section">
+  <a class="back-link" href="/products">← Back to shop</a>
+  <div class="detail-grid">
+    <div class="product-gallery">
+  <div class="detail-image">{{IMAGE}}</div>
+  <div class="product-thumbnails">{{IMAGES}}</div>
+</div>
+    <div class="detail-info">
+      <p class="eyebrow">{{CATEGORY}}</p>
+      <h1>{{NAME}}</h1>
+      <div class="detail-price">৳{{PRICE}}</div>
+      <p class="stock">{{STOCK_TEXT}}</p>
+      <p class="description">{{DESCRIPTION}}</p>
+      <form class="add-form" method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value="{{PRODUCT_ID}}">
+        {{VARIANT}}
+        <label>Quantity
+          <input type="number" name="quantity" min="1" max="{{STOCK}}" value="1" required>
+        </label>
+        <button class="btn full" type="submit" {{DISABLED}}>Add to cart</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<footer><div class="container">© Spark Corner</div></footer>
+
+<script>
+  document.querySelectorAll(".product-thumbnail").forEach((thumbnail) => {
+    thumbnail.addEventListener("click", () => {
+      const mainImage = document.querySelector(".detail-image img");
+
+      if (mainImage) {
+        mainImage.src = thumbnail.src;
+      }
+    });
+  });
+</script>
