@@ -77,10 +77,12 @@ function ensureCart(request) {
   return id;
 }
 
-function cartResponse(request, response) {
+function cartResponse(request, response, cartId = null) {
   const existing = cartIdFor(request);
+
   if (existing) return response;
-  const id = ensureCart(request);
+
+  const id = cartId || ensureCart(request);
   const headers = new Headers(response.headers);
   headers.append(
     "Set-Cookie",
@@ -528,7 +530,7 @@ return new Response(
       }
 
       carts.set(id, cart);
-      return redirect("/cart");
+return cartResponse(request, redirect("/cart"), id);
     }
 
     // ---------- Cart ----------
