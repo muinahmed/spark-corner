@@ -1,6 +1,9 @@
 import { Database } from "@db/sqlite";
 
-const sqlite = new Database("database/shop.sqlite");
+const dataDir = Deno.env.get("DATA_DIR") || "./database";
+await Deno.mkdir(dataDir, { recursive: true });
+
+const sqlite = new Database(`${dataDir}/shop.sqlite`);
 
 sqlite.exec("PRAGMA foreign_keys = ON");
 

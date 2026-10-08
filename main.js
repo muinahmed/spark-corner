@@ -1,5 +1,8 @@
 import db from "./database/database.js";
 
+const uploadDir =
+  `${Deno.env.get("DATA_DIR") || "./public"}/uploads/products`;
+
 const PORT = 8000;
 const carts = new Map();
 const sessions = new Map();
@@ -254,10 +257,10 @@ async function saveUploadedImage(file) {
   const allowed = ["jpg", "jpeg", "png", "webp", "gif"];
   const extension = allowed.includes(originalExtension) ? originalExtension : "jpg";
   const fileName = `${crypto.randomUUID()}.${extension}`;
-  const diskPath = `./public/uploads/products/${fileName}`;
+  const diskPath = `${uploadDir}/${fileName}`;
 const webPath = `/uploads/products/${fileName}`;
 
-await Deno.mkdir("./public/uploads/products", { recursive: true });
+await Deno.mkdir(uploadDir, { recursive: true });
 
 await Deno.writeFile(
   diskPath,
@@ -301,7 +304,9 @@ Deno.serve({ port: PORT }, async (request) => {
   const safePath = url.pathname.replaceAll("..", "");
 
   try {
-    const data = await Deno.readFile(`./public${safePath}`);
+    const data = await Deno.readFile(
+  `${Deno.env.get("DATA_DIR") || "./public"}${safePath}`
+);
 
     return new Response(data, {
       headers: {
@@ -316,7 +321,9 @@ Deno.serve({ port: PORT }, async (request) => {
     if (url.pathname.startsWith("/uploads/products/")) {
       const safePath = url.pathname.replaceAll("..", "");
       try {
-        const data = await Deno.readFile(`./public${safePath}`);
+        const data = await Deno.readFile(
+  `${Deno.env.get("DATA_DIR") || "./public"}${safePath}`
+);
         return new Response(data, { headers: { "content-type": imageMime(safePath) } });
       } catch {
         return new Response("Image not found", { status: 404 });
