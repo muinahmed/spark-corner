@@ -332,23 +332,23 @@ Deno.serve({ port: PORT }, async (request) => {
       return new Response(css, { headers: { "content-type": "text/css; charset=utf-8" } });
     }
 
+
     if (url.pathname.startsWith("/images/")) {
-  const safePath = url.pathname.replaceAll("..", "");
+      const safePath = url.pathname.replaceAll("..", "");
 
-  try {
-    const data = await Deno.readFile(
-  `${Deno.env.get("DATA_DIR") || "./public"}${safePath}`
-);
+      try {
+        const data = await Deno.readFile(`./public${safePath}`);
 
-    return new Response(data, {
-      headers: {
-        "content-type": "image/jpeg"
+        return new Response(data, {
+          headers: {
+            "content-type": imageMime(safePath),
+            "cache-control": "public, max-age=3600"
+          }
+        });
+      } catch {
+        return new Response("Image not found", { status: 404 });
       }
-    });
-  } catch {
-    return new Response("Image not found", { status: 404 });
-  }
-}
+    }
 
     if (url.pathname.startsWith("/uploads/products/")) {
       const safePath = url.pathname.replaceAll("..", "");
