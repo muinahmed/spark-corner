@@ -47,18 +47,53 @@
       <input name="sku" value="{{SKU}}">
     </label>
 
-    <div class="panel nested">
-      <h2>Variant</h2>
-      <p class="muted">For multiple values, separate them with commas. Example: Small, Medium, Large.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Variant name</th><th>Values</th></tr></thead>
-          <tbody>{{VARIANTS}}</tbody>
-        </table>
+    <div class="panel nested beauty-details">
+      <h2>Beauty & product details</h2>
+      <p class="muted">Use the fields that fit this item. They help customers find and confidently choose products.</p>
+      <div class="form-two">
+        <label>Skin concern / product benefit
+          <input name="skin_concern" value="{{SKIN_CONCERN}}" placeholder="e.g. Dry skin, Brightening">
+        </label>
+        <label>Jewellery material
+          <input name="material" value="{{MATERIAL}}" placeholder="e.g. Stainless steel, Gold plated">
+        </label>
+      </div>
+      <label>Ingredients
+        <textarea name="ingredients" placeholder="Key ingredients or formula details">{{INGREDIENTS}}</textarea>
+      </label>
+      <label>How to use
+        <textarea name="how_to_use" placeholder="Simple usage instructions">{{HOW_TO_USE}}</textarea>
+      </label>
+      <div class="form-two">
+        <label>Size / dimensions
+          <input name="size_info" value="{{SIZE_INFO}}" placeholder="e.g. Adjustable, 18 cm">
+        </label>
+        <label>Care instructions
+          <input name="care_instructions" value="{{CARE_INSTRUCTIONS}}" placeholder="e.g. Keep dry; avoid perfume">
+        </label>
       </div>
     </div>
 
-    <label>Product images
+    <div class="panel nested">
+      <h2>Design options</h2>
+      <p class="muted">For jewellery, makeup, or skincare variations, add one design per line. Upload design images in the same order so customers can see exactly what they choose.</p>
+      <label>Option label
+        <input name="variant_name" value="{{VARIANT_NAME}}" placeholder="e.g. Design, Shade, Colour">
+      </label>
+      <label>Design names — one per line
+        <textarea name="variant_value" placeholder="Rose Gold\nSilver\nPearl">{{VARIANT_VALUES}}</textarea>
+      </label>
+      <label>Stock for each design — one number per line, in the same order
+        <textarea name="variant_stock" inputmode="numeric" placeholder="5\n8\n3">{{VARIANT_STOCKS}}</textarea>
+      </label>
+      <p class="muted">Tip: set the main product stock above to the total of all design stocks.</p>
+      <label>Design photos — same order as the names above
+        <input type="file" name="variant_images" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+      </label>
+      {{CURRENT_DESIGN_IMAGES}}
+    </div>
+
+    <label>General product gallery images
   <input type="file" name="images" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
     </label>
 

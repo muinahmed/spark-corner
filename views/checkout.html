@@ -6,14 +6,23 @@
 </header>
 
 <main class="container section">
-  <div class="page-title"><p class="eyebrow">Almost there</p><h1>Checkout</h1></div>
+  <div class="page-title"><p class="eyebrow">Almost there</p><h1>Your order, made simple.</h1><p class="page-intro">Enter your delivery details and we’ll take it from here.</p></div>
   <div class="checkout-grid">
     <form class="panel" method="POST" action="/checkout">
       <h2>Your details</h2>
       <label>Full name *<input name="customer_name" required></label>
       <label>Phone *<input name="phone" required></label>
+      <label>Confirm phone *<input name="phone_confirmation" inputmode="tel" required></label>
       <label>Email<input type="email" name="email"></label>
       <label>Delivery address *<textarea name="address" required></textarea></label>
+      <label>Delivery area *
+        <select name="delivery_area" required>
+          <option value="Inside Dhaka">Inside Dhaka — ৳70</option>
+          <option value="Outside Dhaka">Outside Dhaka — ৳130</option>
+        </select>
+      </label>
+      <p class="muted">Your delivery charge is included in the final total.</p>
+      <label>Order note <textarea name="order_notes" placeholder="Colour preference, delivery instructions, or a gift note"></textarea></label>
       <label>Payment method *
         <select name="payment_method" required>
           <option value="Cash on Delivery">Cash on Delivery</option>
@@ -27,9 +36,27 @@
     <aside class="panel">
       <h2>Your order</h2>
       <ul class="order-list">{{ITEMS}}</ul>
-      <div class="total-line"><span>Total</span><strong>৳{{TOTAL}}</strong></div>
+      <div class="checkout-subtotal"><span>Subtotal</span><strong>৳{{SUBTOTAL}}</strong></div>
+      <p class="delivery-note">Delivery: ৳70 inside Dhaka · ৳130 outside Dhaka</p>
+      <div class="checkout-total"><span>Total</span><strong id="checkout-total" data-subtotal="{{SUBTOTAL}}">৳{{SUBTOTAL}}</strong></div>
     </aside>
   </div>
 </main>
+
+<script>
+  const deliveryArea = document.querySelector("select[name='delivery_area']");
+  const total = document.querySelector("#checkout-total");
+  const updateTotal = () => {
+    if (!deliveryArea || !total) return;
+    const delivery = deliveryArea.value === "Inside Dhaka" ? 70 : 130;
+    const subtotal = Number(
+  (total.dataset.subtotal || "0").replace(/,/g, "")
+);
+
+total.textContent = `৳${subtotal + delivery}`;
+  };
+  deliveryArea?.addEventListener("change", updateTotal);
+  updateTotal();
+</script>
 
 <footer><div class="container">© Spark Corner</div></footer>

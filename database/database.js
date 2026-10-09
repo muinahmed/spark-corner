@@ -42,6 +42,12 @@ const schema = [
     description TEXT,
     price REAL NOT NULL DEFAULT 0,
     sku TEXT,
+    skin_concern TEXT,
+    ingredients TEXT,
+    how_to_use TEXT,
+    material TEXT,
+    size_info TEXT,
+    care_instructions TEXT,
     stock INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -63,6 +69,8 @@ const schema = [
     product_id INTEGER NOT NULL,
     variant_name TEXT NOT NULL,
     variant_value TEXT NOT NULL,
+    image_path TEXT,
+    stock INTEGER,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
   )`,
 
@@ -74,6 +82,10 @@ const schema = [
     address TEXT NOT NULL,
     payment_method TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Pending',
+    delivery_area TEXT,
+    subtotal REAL NOT NULL DEFAULT 0,
+    delivery_charge REAL NOT NULL DEFAULT 0,
+    order_notes TEXT,
     total REAL NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   )`,
@@ -93,5 +105,23 @@ const schema = [
 for (const statement of schema) {
   db.exec(statement);
 }
+
+function addColumnIfMissing(table, column, definition) {
+  const columns = db.query(`PRAGMA table_info(${table})`).map(row => row[1]);
+  if (!columns.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+}
+
+addColumnIfMissing("product_variants", "image_path", "image_path TEXT");
+addColumnIfMissing("product_variants", "stock", "stock INTEGER");
+addColumnIfMissing("orders", "delivery_area", "delivery_area TEXT");
+addColumnIfMissing("orders", "subtotal", "subtotal REAL NOT NULL DEFAULT 0");
+addColumnIfMissing("orders", "delivery_charge", "delivery_charge REAL NOT NULL DEFAULT 0");
+addColumnIfMissing("orders", "order_notes", "order_notes TEXT");
+addColumnIfMissing("products", "skin_concern", "skin_concern TEXT");
+addColumnIfMissing("products", "ingredients", "ingredients TEXT");
+addColumnIfMissing("products", "how_to_use", "how_to_use TEXT");
+addColumnIfMissing("products", "material", "material TEXT");
+addColumnIfMissing("products", "size_info", "size_info TEXT");
+addColumnIfMissing("products", "care_instructions", "care_instructions TEXT");
 
 export default db;

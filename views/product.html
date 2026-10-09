@@ -18,6 +18,7 @@
       <div class="detail-price">৳{{PRICE}}</div>
       <p class="stock">{{STOCK_TEXT}}</p>
       <p class="description">{{DESCRIPTION}}</p>
+      {{PRODUCT_DETAILS}}
       <form class="add-form" method="POST" action="/cart/add">
         <input type="hidden" name="product_id" value="{{PRODUCT_ID}}">
         {{VARIANT}}
@@ -28,6 +29,7 @@
       </form>
     </div>
   </div>
+  {{RELATED_PRODUCTS}}
 </main>
 
 <footer><div class="container">© Spark Corner</div></footer>
@@ -42,4 +44,16 @@
       }
     });
   });
+
+  document.querySelector("select[name='variant_id']")?.addEventListener("change", (event) => {
+    const image = event.target.selectedOptions[0]?.dataset.image;
+    const mainImage = document.querySelector(".detail-image img");
+    if (image && mainImage) mainImage.src = image;
+    const stock = Number(event.target.selectedOptions[0]?.dataset.stock || 0);
+    const quantity = document.querySelector("input[name='quantity']");
+    const button = document.querySelector(".add-form button");
+    if (quantity) { quantity.max = stock; if (Number(quantity.value) > stock) quantity.value = Math.max(stock, 1); }
+    if (button) { button.disabled = stock < 1; button.textContent = stock < 1 ? "Design out of stock" : "Add to cart"; }
+  });
+  document.querySelector("select[name='variant_id']")?.dispatchEvent(new Event("change"));
 </script>

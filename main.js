@@ -10,7 +10,7 @@ const sessions = new Map();
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "muin123";
 
-const ORDER_STATUSES = ["Pending", "Confirmed", "Processing", "Shipped", "Delivered"];
+const ORDER_STATUSES = ["Pending", "Confirmed", "Processing", "Out for Delivery", "Delivered", "Cancelled"];
 
 function escapeHtml(value = "") {
   return String(value)
@@ -161,7 +161,8 @@ function getProducts(search = "", category = "", limit = 24, offset = 0) {
 function getProduct(id) {
   const rows = db.query(`
     SELECT p.id, p.category_id, p.name, p.slug, p.description,
-           p.price, p.sku, p.stock, p.is_active,
+           p.price, p.sku, p.stock, p.is_active, p.skin_concern, p.ingredients,
+           p.how_to_use, p.material, p.size_info, p.care_instructions,
            c.name AS category_name,
            COALESCE(
              (SELECT image_path FROM product_images
@@ -176,7 +177,7 @@ function getProduct(id) {
 
   const row = rows[0];
   const variants = db.query(`
-    SELECT id, variant_name, variant_value
+    SELECT id, variant_name, variant_value, image_path, stock
     FROM product_variants
     WHERE product_id = ?
     ORDER BY id
@@ -199,8 +200,14 @@ function getProduct(id) {
     sku: row[6] ?? "",
     stock: Number(row[7]),
     active: Number(row[8]) === 1,
-    categoryName: row[9] ?? "Uncategorised",
-    imagePath: row[10] ?? "",
+    skinConcern: row[9] ?? "",
+    ingredients: row[10] ?? "",
+    howToUse: row[11] ?? "",
+    material: row[12] ?? "",
+    sizeInfo: row[13] ?? "",
+    careInstructions: row[14] ?? "",
+    categoryName: row[15] ?? "Uncategorised",
+    imagePath: row[16] ?? "",
     images: images.map(image => ({
   path: image[0],
   isMain: Number(image[1]) === 1
@@ -208,7 +215,9 @@ function getProduct(id) {
     variants: variants.map(v => ({
       id: v[0],
       name: v[1],
-      value: v[2]
+      value: v[2],
+      imagePath: v[3] ?? "",
+      stock: v[4] === null ? null : Number(v[4])
     }))
   };
 }
@@ -217,9 +226,16 @@ function getCartDetails(request) {
   return getCart(request).map(item => {
     const product = getProduct(item.productId);
     if (!product) return null;
+    const variant = item.variantId
+      ? product.variants.find(entry => entry.id === item.variantId)
+      : null;
+    if (item.variantId && !variant) return null;
     return {
       ...item,
       product,
+      variant,
+      imagePath: variant?.imagePath || product.imagePath,
+      availableStock: variant?.stock ?? product.stock,
       lineTotal: product.price * item.quantity
     };
   }).filter(Boolean);
@@ -279,17 +295,31 @@ function categoryOptions(selectedId = null) {
   ).join("");
 }
 
-function variantRows(variants = []) {
-  if (!variants.length) {
-    return `<tr><td><input name="variant_name" placeholder="e.g. Size"></td><td><input name="variant_value" placeholder="e.g. Medium"></td></tr>`;
-  }
+function designImagePreview(variants = []) {
+  const designs = variants.filter(variant => variant.imagePath);
+  if (!designs.length) return "";
+  return `<div class="design-preview-list">${designs.map(variant => `
+    <figure><img src="${variant.imagePath}" alt="${escapeHtml(variant.value)}"><figcaption>${escapeHtml(variant.value)}</figcaption></figure>
+  `).join("")}</div>`;
+}
 
-  return variants.map(v => `
-    <tr>
-      <td><input name="variant_name" value="${escapeHtml(v.name)}"></td>
-      <td><input name="variant_value" value="${escapeHtml(v.value)}"></td>
-    </tr>
-  `).join("");
+async function saveDesignVariants(productId, variantName, variantValue, variantStock, files = [], existing = []) {
+  const names = String(variantValue ?? "").split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+  const stocks = String(variantStock ?? "").split(/\r?\n/).map(value => value.trim());
+  if (!variantName || !names.length) return;
+
+  for (const [index, value] of names.entries()) {
+    const uploaded = await saveUploadedImage(files[index]);
+    const old = existing.find(variant => variant.value === value);
+    const requestedStock = stocks[index] === "" || stocks[index] === undefined ? old?.stock ?? null : Number(stocks[index]);
+    if (requestedStock !== null && (!Number.isInteger(requestedStock) || requestedStock < 0)) {
+      throw new Error(`Stock for ${value} must be a whole number of 0 or more.`);
+    }
+    db.query(
+      "INSERT INTO product_variants (product_id, variant_name, variant_value, image_path, stock) VALUES (?, ?, ?, ?, ?)",
+      [productId, variantName, value, uploaded?.webPath || old?.imagePath || null, requestedStock]
+    );
+  }
 }
 
 Deno.serve({ port: PORT }, async (request) => {
@@ -363,6 +393,11 @@ return new Response(
 if (url.pathname === "/products" && request.method === "GET") {
   const search = url.searchParams.get("q")?.trim() ?? "";
   const category = url.searchParams.get("category") ?? "";
+  const minPrice = url.searchParams.get("min_price")?.trim() ?? "";
+  const maxPrice = url.searchParams.get("max_price")?.trim() ?? "";
+  const skinConcern = url.searchParams.get("skin_concern")?.trim() ?? "";
+  const material = url.searchParams.get("material")?.trim() ?? "";
+  const design = url.searchParams.get("design")?.trim() ?? "";
 
   let sql = `
     SELECT p.id, p.name, p.price, p.stock, p.is_active,
@@ -384,6 +419,11 @@ if (url.pathname === "/products" && request.method === "GET") {
         sql += " AND c.slug = ?";
         params.push(category);
       }
+      if (minPrice !== "" && Number.isFinite(Number(minPrice))) { sql += " AND p.price >= ?"; params.push(Number(minPrice)); }
+      if (maxPrice !== "" && Number.isFinite(Number(maxPrice))) { sql += " AND p.price <= ?"; params.push(Number(maxPrice)); }
+      if (skinConcern) { sql += " AND LOWER(COALESCE(p.skin_concern, '')) LIKE LOWER(?)"; params.push(`%${skinConcern}%`); }
+      if (material) { sql += " AND LOWER(COALESCE(p.material, '')) LIKE LOWER(?)"; params.push(`%${material}%`); }
+      if (design) { sql += " AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND LOWER(v.variant_value) LIKE LOWER(?))"; params.push(`%${design}%`); }
 
       const pageNumber = Math.max(1, Number(url.searchParams.get("page") || 1));
 const pageSize = 24;
@@ -421,6 +461,11 @@ const products = db.query(sql, params);
 
 if (search) queryBase.set("q", search);
 if (category) queryBase.set("category", category);
+if (minPrice) queryBase.set("min_price", minPrice);
+if (maxPrice) queryBase.set("max_price", maxPrice);
+if (skinConcern) queryBase.set("skin_concern", skinConcern);
+if (material) queryBase.set("material", material);
+if (design) queryBase.set("design", design);
 
 const pagination = `
   <div class="pagination">
@@ -440,7 +485,12 @@ return new Response(
   page(
     "Shop",
     html
-      .replace("{{SEARCH}}", escapeHtml(search))
+       .replace("{{SEARCH}}", escapeHtml(search))
+       .replace("{{MIN_PRICE}}", escapeHtml(minPrice))
+       .replace("{{MAX_PRICE}}", escapeHtml(maxPrice))
+       .replace("{{SKIN_CONCERN}}", escapeHtml(skinConcern))
+       .replace("{{MATERIAL}}", escapeHtml(material))
+       .replace("{{DESIGN}}", escapeHtml(design))
       .replace("{{CATEGORIES}}", categoryLinks)
       .replace("{{PRODUCTS}}", cards)
       .replace("{{PAGINATION}}", pagination)
@@ -458,20 +508,36 @@ return new Response(
 
       const variantSelector = product.variants.length
         ? `<label>Choose ${escapeHtml(product.variants[0].name)}
-             <select name="variant" required>
-               ${product.variants.map(v =>
-                 `<option value="${escapeHtml(v.name + ": " + v.value)}">${escapeHtml(v.value)}</option>`
-               ).join("")}
+             <select name="variant_id" required>
+                ${product.variants.map(v =>
+                  `<option value="${v.id}" data-image="${escapeHtml(v.imagePath)}" data-stock="${v.stock ?? product.stock}" ${((v.stock ?? product.stock) < 1) ? "disabled" : ""}>${escapeHtml(v.value)}${((v.stock ?? product.stock) < 1) ? " — Out of stock" : ""}</option>`
+                ).join("")}
              </select>
            </label>`
         : "";
 
-      const image = product.imagePath
-        ? `<img src="${product.imagePath}" alt="${escapeHtml(product.name)}">`
+      const primaryImage = product.imagePath || product.variants.find(variant => variant.imagePath)?.imagePath;
+      const image = primaryImage
+        ? `<img src="${primaryImage}" alt="${escapeHtml(product.name)}">`
         : `<div class="image-placeholder large">No image</div>`;
 
       const html = await readView("product.html");
-      const imageGallery = product.images.map((img) => `
+      const detailRows = [
+        ["Skin concern", product.skinConcern], ["Ingredients", product.ingredients],
+        ["How to use", product.howToUse], ["Material", product.material],
+        ["Size", product.sizeInfo], ["Care", product.careInstructions]
+      ].filter(([, value]) => value).map(([label, value]) =>
+        `<div><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`
+      ).join("");
+      const productDetails = detailRows ? `<dl class="product-details">${detailRows}</dl>` : "";
+      const related = db.query(`
+        SELECT p.id, p.name, p.price, COALESCE((SELECT image_path FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1), '')
+        FROM products p WHERE p.is_active = 1 AND p.id <> ? AND (p.category_id = ? OR ? IS NULL)
+        ORDER BY p.id DESC LIMIT 3
+      `, [product.id, product.categoryId, product.categoryId]);
+      const relatedCards = related.map(row => `<article class="product-card"><a href="/product/${row[0]}">${row[3] ? `<img src="${row[3]}" alt="${escapeHtml(row[1])}">` : `<div class="image-placeholder">Spark Corner</div>`}</a><div class="product-card-body"><h3>${escapeHtml(row[1])}</h3><strong>৳${Number(row[2]).toFixed(0)}</strong><a class="text-link" href="/product/${row[0]}">View product →</a></div></article>`).join("");
+      const relatedProducts = relatedCards ? `<section class="related-products"><div class="page-title"><p class="eyebrow">You may also like</p><h2>Complete your routine</h2></div><div class="product-grid">${relatedCards}</div></section>` : "";
+      const imageGallery = [...product.variants.filter(variant => variant.imagePath).map(variant => ({ path: variant.imagePath })), ...product.images].map((img) => `
   <img
     src="${img.path}"
     alt="${escapeHtml(product.name)}"
@@ -485,7 +551,9 @@ return new Response(
     html
       .replace("{{NAME}}", escapeHtml(product.name))
       .replace("{{CATEGORY}}", escapeHtml(product.categoryName))
-      .replace("{{DESCRIPTION}}", escapeHtml(product.description))
+       .replace("{{DESCRIPTION}}", escapeHtml(product.description))
+       .replace("{{PRODUCT_DETAILS}}", productDetails)
+       .replace("{{RELATED_PRODUCTS}}", relatedProducts)
       .replace("{{PRICE}}", product.price.toFixed(0))
       .replace("{{STOCK}}", String(product.stock))
       .replace("{{IMAGE}}", image)
@@ -508,25 +576,30 @@ return new Response(
       const form = await request.formData();
       const productId = Number(form.get("product_id"));
       const quantity = Number(form.get("quantity") || 1);
-      const variant = form.get("variant")?.toString() || null;
+      const variantId = Number(form.get("variant_id")) || null;
 
       const product = getProduct(productId);
       if (!product) return new Response("Product not found", { status: 404 });
-      if (quantity < 1 || quantity > product.stock) {
+      const selectedVariant = product.variants.find(variant => variant.id === variantId);
+      if (product.variants.length && !selectedVariant) {
+        return new Response("Please choose a valid design.", { status: 400 });
+      }
+      const availableStock = selectedVariant?.stock ?? product.stock;
+      if (quantity < 1 || quantity > product.stock || quantity > availableStock) {
         return new Response("Invalid quantity or insufficient stock", { status: 400 });
       }
 
       const id = ensureCart(request);
       const cart = carts.get(id);
-      const existing = cart.find(i => i.productId === productId && i.variant === variant);
+      const existing = cart.find(i => i.productId === productId && i.variantId === variantId);
 
       if (existing) {
-        if (existing.quantity + quantity > product.stock) {
+        if (existing.quantity + quantity > availableStock) {
           return new Response("Not enough stock available", { status: 400 });
         }
         existing.quantity += quantity;
       } else {
-        cart.push({ productId, quantity, variant });
+        cart.push({ productId, quantity, variantId });
       }
 
       carts.set(id, cart);
@@ -539,31 +612,31 @@ return cartResponse(request, redirect("/cart"), id);
       const items = details.map(item => `
         <div class="cart-item">
           <div class="cart-image">
-            ${item.product.imagePath
-              ? `<img src="${item.product.imagePath}" alt="${escapeHtml(item.product.name)}">`
+            ${item.imagePath
+              ? `<img src="${item.imagePath}" alt="${escapeHtml(item.product.name)}">`
               : `<div class="image-placeholder">No image</div>`}
           </div>
           <div class="cart-info">
             <h2>${escapeHtml(item.product.name)}</h2>
-            ${item.variant ? `<p class="variant">Variant: ${escapeHtml(item.variant)}</p>` : ""}
+            ${item.variant ? `<p class="variant">${escapeHtml(item.variant.name)}: ${escapeHtml(item.variant.value)}</p>` : ""}
             <p class="price">৳${item.product.price.toFixed(0)}</p>
             <div class="cart-actions">
               <form method="POST" action="/cart/update">
                 <input type="hidden" name="product_id" value="${item.product.id}">
-                <input type="hidden" name="variant" value="${escapeHtml(item.variant ?? "")}">
+                <input type="hidden" name="variant_id" value="${item.variantId ?? ""}">
                 <input type="hidden" name="quantity" value="${Math.max(1, item.quantity - 1)}">
                 <button type="submit" ${item.quantity <= 1 ? "disabled" : ""}>−</button>
               </form>
               <span>${item.quantity}</span>
               <form method="POST" action="/cart/update">
                 <input type="hidden" name="product_id" value="${item.product.id}">
-                <input type="hidden" name="variant" value="${escapeHtml(item.variant ?? "")}">
+                <input type="hidden" name="variant_id" value="${item.variantId ?? ""}">
                 <input type="hidden" name="quantity" value="${item.quantity + 1}">
-                <button type="submit" ${item.quantity >= item.product.stock ? "disabled" : ""}>+</button>
+                <button type="submit" ${item.quantity >= item.availableStock ? "disabled" : ""}>+</button>
               </form>
               <form method="POST" action="/cart/remove">
                 <input type="hidden" name="product_id" value="${item.product.id}">
-                <input type="hidden" name="variant" value="${escapeHtml(item.variant ?? "")}">
+                <input type="hidden" name="variant_id" value="${item.variantId ?? ""}">
                 <button class="danger-button" type="submit">Remove</button>
               </form>
             </div>
@@ -593,14 +666,16 @@ return cartResponse(request, redirect("/cart"), id);
       const form = await request.formData();
       const productId = Number(form.get("product_id"));
       const quantity = Number(form.get("quantity"));
-      const variant = form.get("variant")?.toString() || null;
+      const variantId = Number(form.get("variant_id")) || null;
       const id = cartIdFor(request);
       const cart = id ? (carts.get(id) ?? []) : [];
 
-      const item = cart.find(i => i.productId === productId && i.variant === variant);
+      const item = cart.find(i => i.productId === productId && i.variantId === variantId);
       const product = getProduct(productId);
 
-      if (!item || !product || quantity < 1 || quantity > product.stock) {
+      const selectedVariant = product?.variants.find(variant => variant.id === variantId);
+      const availableStock = selectedVariant?.stock ?? product?.stock;
+      if (!item || !product || quantity < 1 || quantity > availableStock) {
         return new Response("Invalid cart update", { status: 400 });
       }
 
@@ -612,13 +687,13 @@ return cartResponse(request, redirect("/cart"), id);
     if (url.pathname === "/cart/remove" && request.method === "POST") {
       const form = await request.formData();
       const productId = Number(form.get("product_id"));
-      const variant = form.get("variant")?.toString() || null;
+      const variantId = Number(form.get("variant_id")) || null;
       const id = cartIdFor(request);
       const cart = id ? (carts.get(id) ?? []) : [];
 
       carts.set(
         id,
-        cart.filter(i => !(i.productId === productId && i.variant === variant))
+        cart.filter(i => !(i.productId === productId && i.variantId === variantId))
       );
       return redirect("/cart");
     }
@@ -632,7 +707,7 @@ return cartResponse(request, redirect("/cart"), id);
         <li>
           <span>
             ${escapeHtml(item.product.name)}
-            ${item.variant ? ` <small>(${escapeHtml(item.variant)})</small>` : ""}
+            ${item.variant ? ` <small>(${escapeHtml(item.variant.name)}: ${escapeHtml(item.variant.value)})</small>` : ""}
             × ${item.quantity}
           </span>
           <strong>৳${item.lineTotal.toFixed(0)}</strong>
@@ -641,15 +716,19 @@ return cartResponse(request, redirect("/cart"), id);
 
       const html = await readView("checkout.html");
 
+
+const subtotal = totalForCart(details).toFixed(0);
+
+const checkoutHtml = html
+  .replace("{{ITEMS}}", items)
+  .replaceAll("{{SUBTOTAL}}", subtotal)
+  .replace("{{TOTAL}}", "Calculated after delivery area is selected");
+
 return new Response(
-  page(
-    "Checkout",
-    html
-      .replace("{{ITEMS}}", items)
-      .replace("{{TOTAL}}", totalForCart(details).toFixed(0))
-  ),
+  page("Checkout", checkoutHtml),
   { headers: { "content-type": "text/html; charset=utf-8" } }
 );
+
     }
 
     if (url.pathname === "/checkout" && request.method === "POST") {
@@ -659,34 +738,49 @@ return new Response(
       const form = await request.formData();
       const name = form.get("customer_name")?.toString().trim();
       const phone = form.get("phone")?.toString().trim();
+      const phoneConfirmation = form.get("phone_confirmation")?.toString().trim();
       const email = form.get("email")?.toString().trim() || null;
       const address = form.get("address")?.toString().trim();
       const payment = form.get("payment_method")?.toString();
+      const deliveryArea = form.get("delivery_area")?.toString();
+      const orderNotes = form.get("order_notes")?.toString().trim() || null;
 
-      if (!name || !phone || !address || !["Cash on Delivery", "bKash", "Nagad"].includes(payment)) {
+      if (!name || !phone || !address || !["Cash on Delivery", "bKash", "Nagad"].includes(payment) || !["Inside Dhaka", "Outside Dhaka"].includes(deliveryArea)) {
         return new Response("Please complete all required checkout fields.", { status: 400 });
+      }
+      if (phone !== phoneConfirmation) {
+        return new Response("Phone numbers do not match.", { status: 400 });
       }
 
       for (const item of details) {
         const current = getProduct(item.product.id);
-        if (!current || current.stock < item.quantity) {
+        const currentVariant = item.variantId
+          ? current?.variants.find(variant => variant.id === item.variantId)
+          : null;
+        const availableStock = currentVariant?.stock ?? current?.stock ?? 0;
+        if (!current || current.stock < item.quantity || availableStock < item.quantity) {
           return new Response(`Not enough stock for ${escapeHtml(item.product.name)}.`, { status: 400 });
         }
       }
 
-      const total = totalForCart(details);
+      const subtotal = totalForCart(details);
+      const deliveryCharge = deliveryArea === "Inside Dhaka" ? 70 : 130;
+      const total = subtotal + deliveryCharge;
 
+      let orderId;
+      db.exec("BEGIN IMMEDIATE");
+      try {
       db.query(`
         INSERT INTO orders
-        (customer_name, phone, email, address, payment_method, status, total)
-        VALUES (?, ?, ?, ?, ?, 'Pending', ?)
-      `, [name, phone, email, address, payment, total]);
+        (customer_name, phone, email, address, payment_method, status, delivery_area, subtotal, delivery_charge, order_notes, total)
+        VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?)
+      `, [name, phone, email, address, payment, deliveryArea, subtotal, deliveryCharge, orderNotes, total]);
 
-      const orderId = db.query("SELECT last_insert_rowid()")[0][0];
+      orderId = db.query("SELECT last_insert_rowid()")[0][0];
 
       for (const item of details) {
         const displayName = item.variant
-          ? `${item.product.name} (${item.variant})`
+          ? `${item.product.name} (${item.variant.name}: ${item.variant.value})`
           : item.product.name;
 
         db.query(`
@@ -705,6 +799,17 @@ return new Response(
           "UPDATE products SET stock = stock - ? WHERE id = ?",
           [item.quantity, item.product.id]
         );
+        if (item.variantId) {
+          db.query(
+            "UPDATE product_variants SET stock = stock - ? WHERE id = ? AND stock IS NOT NULL",
+            [item.quantity, item.variantId]
+          );
+        }
+      }
+      db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
       }
 
       const id = cartIdFor(request);
@@ -868,9 +973,18 @@ return new Response(
       .replaceAll("{{DESCRIPTION}}", "")
       .replaceAll("{{PRICE}}", "")
       .replaceAll("{{STOCK}}", "")
-      .replaceAll("{{SKU}}", "")
-      .replaceAll("{{CATEGORIES}}", categoryOptions())
-      .replaceAll("{{VARIANTS}}", variantRows())
+       .replaceAll("{{SKU}}", "")
+       .replaceAll("{{SKIN_CONCERN}}", "")
+       .replaceAll("{{INGREDIENTS}}", "")
+       .replaceAll("{{HOW_TO_USE}}", "")
+       .replaceAll("{{MATERIAL}}", "")
+       .replaceAll("{{SIZE_INFO}}", "")
+       .replaceAll("{{CARE_INSTRUCTIONS}}", "")
+       .replaceAll("{{CATEGORIES}}", categoryOptions())
+       .replaceAll("{{VARIANT_NAME}}", "Design")
+       .replaceAll("{{VARIANT_VALUES}}", "")
+       .replaceAll("{{VARIANT_STOCKS}}", "")
+       .replaceAll("{{CURRENT_DESIGN_IMAGES}}", "")
       .replaceAll("{{CURRENT_IMAGE}}", "")
       .replaceAll("{{ID}}", "")
   ),
@@ -888,9 +1002,17 @@ return new Response(
       const price = Number(form.get("price"));
       const stock = Number(form.get("stock"));
       const sku = form.get("sku")?.toString().trim() || null;
+      const skinConcern = form.get("skin_concern")?.toString().trim() || null;
+      const ingredients = form.get("ingredients")?.toString().trim() || null;
+      const howToUse = form.get("how_to_use")?.toString().trim() || null;
+      const material = form.get("material")?.toString().trim() || null;
+      const sizeInfo = form.get("size_info")?.toString().trim() || null;
+      const careInstructions = form.get("care_instructions")?.toString().trim() || null;
       const categoryId = Number(form.get("category_id")) || null;
       const variantName = form.get("variant_name")?.toString().trim();
       const variantValue = form.get("variant_value")?.toString().trim();
+      const variantStock = form.get("variant_stock")?.toString();
+      const variantImages = form.getAll("variant_images");
       const images = form.getAll("images");
 
       if (!name || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
@@ -906,20 +1028,13 @@ return new Response(
 
       db.query(`
         INSERT INTO products
-        (category_id, name, slug, description, price, sku, stock)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [categoryId, name, slug, description, price, sku, stock]);
+        (category_id, name, slug, description, price, sku, stock, skin_concern, ingredients, how_to_use, material, size_info, care_instructions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [categoryId, name, slug, description, price, sku, stock, skinConcern, ingredients, howToUse, material, sizeInfo, careInstructions]);
 
       const productId = db.query("SELECT last_insert_rowid()")[0][0];
 
-      if (variantName && variantValue) {
-        for (const value of variantValue.split(",").map(v => v.trim()).filter(Boolean)) {
-          db.query(
-            "INSERT INTO product_variants (product_id, variant_name, variant_value) VALUES (?, ?, ?)",
-            [productId, variantName, value]
-          );
-        }
-      }
+      await saveDesignVariants(productId, variantName, variantValue, variantStock, variantImages);
 
       for (const [index, image] of images.entries()) {
   const uploaded = await saveUploadedImage(image);
@@ -959,9 +1074,18 @@ return new Response(
       .replaceAll("{{DESCRIPTION}}", escapeHtml(product.description))
       .replaceAll("{{PRICE}}", product.price.toFixed(0))
       .replaceAll("{{STOCK}}", String(product.stock))
-      .replaceAll("{{SKU}}", escapeHtml(product.sku))
-      .replaceAll("{{CATEGORIES}}", categoryOptions(product.categoryId))
-      .replaceAll("{{VARIANTS}}", variantRows(product.variants))
+       .replaceAll("{{SKU}}", escapeHtml(product.sku))
+       .replaceAll("{{SKIN_CONCERN}}", escapeHtml(product.skinConcern))
+       .replaceAll("{{INGREDIENTS}}", escapeHtml(product.ingredients))
+       .replaceAll("{{HOW_TO_USE}}", escapeHtml(product.howToUse))
+       .replaceAll("{{MATERIAL}}", escapeHtml(product.material))
+       .replaceAll("{{SIZE_INFO}}", escapeHtml(product.sizeInfo))
+       .replaceAll("{{CARE_INSTRUCTIONS}}", escapeHtml(product.careInstructions))
+       .replaceAll("{{CATEGORIES}}", categoryOptions(product.categoryId))
+       .replaceAll("{{VARIANT_NAME}}", escapeHtml(product.variants[0]?.name || "Design"))
+       .replaceAll("{{VARIANT_VALUES}}", escapeHtml(product.variants.map(variant => variant.value).join("\n")))
+       .replaceAll("{{VARIANT_STOCKS}}", escapeHtml(product.variants.map(variant => variant.stock ?? "").join("\n")))
+       .replaceAll("{{CURRENT_DESIGN_IMAGES}}", designImagePreview(product.variants))
       .replaceAll("{{CURRENT_IMAGE}}", currentImage)
       .replaceAll("{{ID}}", String(id))
   ),
@@ -985,9 +1109,17 @@ return new Response(
       const price = Number(form.get("price"));
       const stock = Number(form.get("stock"));
       const sku = form.get("sku")?.toString().trim() || null;
+      const skinConcern = form.get("skin_concern")?.toString().trim() || null;
+      const ingredients = form.get("ingredients")?.toString().trim() || null;
+      const howToUse = form.get("how_to_use")?.toString().trim() || null;
+      const material = form.get("material")?.toString().trim() || null;
+      const sizeInfo = form.get("size_info")?.toString().trim() || null;
+      const careInstructions = form.get("care_instructions")?.toString().trim() || null;
       const categoryId = Number(form.get("category_id")) || null;
       const variantName = form.get("variant_name")?.toString().trim();
       const variantValue = form.get("variant_value")?.toString().trim();
+      const variantStock = form.get("variant_stock")?.toString();
+      const variantImages = form.getAll("variant_images");
       const images = form.getAll("images");
 
       if (!name || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
@@ -1001,20 +1133,13 @@ return new Response(
       db.query(`
         UPDATE products
         SET category_id = ?, name = ?, slug = ?, description = ?,
-            price = ?, sku = ?, stock = ?, updated_at = CURRENT_TIMESTAMP
+            price = ?, sku = ?, stock = ?, skin_concern = ?, ingredients = ?, how_to_use = ?,
+            material = ?, size_info = ?, care_instructions = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [categoryId, name, slug, description, price, sku, stock, id]);
+      `, [categoryId, name, slug, description, price, sku, stock, skinConcern, ingredients, howToUse, material, sizeInfo, careInstructions, id]);
 
       db.query("DELETE FROM product_variants WHERE product_id = ?", [id]);
-
-      if (variantName && variantValue) {
-        for (const value of variantValue.split(",").map(v => v.trim()).filter(Boolean)) {
-          db.query(
-            "INSERT INTO product_variants (product_id, variant_name, variant_value) VALUES (?, ?, ?)",
-            [id, variantName, value]
-          );
-        }
-      }
+      await saveDesignVariants(id, variantName, variantValue, variantStock, variantImages, product.variants);
 
       for (const [index, image] of images.entries()) {
   const uploaded = await saveUploadedImage(image);
@@ -1127,15 +1252,18 @@ return redirect("/admin/products");
       if (denied) return denied;
 
       const status = url.searchParams.get("status") ?? "";
-      const rows = status
-        ? db.query(`
-            SELECT id, customer_name, phone, payment_method, status, total, created_at
-            FROM orders WHERE status = ? ORDER BY id DESC
-          `, [status])
-        : db.query(`
-            SELECT id, customer_name, phone, payment_method, status, total, created_at
-            FROM orders ORDER BY id DESC
-          `);
+      const orderSearch = url.searchParams.get("q")?.trim() ?? "";
+      const orderWhere = [];
+      const orderParams = [];
+      if (status) { orderWhere.push("status = ?"); orderParams.push(status); }
+      if (orderSearch) {
+        orderWhere.push("(CAST(id AS TEXT) LIKE ? OR customer_name LIKE ? OR phone LIKE ?)");
+        orderParams.push(`%${orderSearch}%`, `%${orderSearch}%`, `%${orderSearch}%`);
+      }
+      const rows = db.query(`
+        SELECT id, customer_name, phone, payment_method, status, total, created_at
+        FROM orders ${orderWhere.length ? `WHERE ${orderWhere.join(" AND ")}` : ""} ORDER BY id DESC
+      `, orderParams);
 
       const orderRows = rows.map(row => `
         <tr>
@@ -1150,11 +1278,12 @@ return redirect("/admin/products");
       `).join("");
 
       const filter = ORDER_STATUSES.map(s =>
-        `<a class="${status === s ? "active-filter" : ""}" href="/admin/orders?status=${encodeURIComponent(s)}">${s}</a>`
+        `<a class="${status === s ? "active-filter" : ""}" href="/admin/orders?status=${encodeURIComponent(s)}${orderSearch ? `&q=${encodeURIComponent(orderSearch)}` : ""}">${s}</a>`
       ).join(" ");
 
       const content = `
         <div class="page-title"><p class="eyebrow">Sales</p><h1>Orders</h1></div>
+        <form class="search-bar" method="GET" action="/admin/orders"><input name="q" value="${escapeHtml(orderSearch)}" placeholder="Search order number, customer, or phone"><button class="btn" type="submit">Search</button></form>
         <div class="filters"><a href="/admin/orders">All</a>${filter}</div>
         <div class="table-wrap">
           <table>
@@ -1185,6 +1314,18 @@ return redirect("/admin/products");
       return redirect(`/admin/orders/${orderId}`);
     }
 
+    if (url.pathname.startsWith("/admin/orders/") && url.pathname.endsWith("/print") && request.method === "GET") {
+      const denied = adminGuard(request);
+      if (denied) return denied;
+      const orderId = Number(url.pathname.split("/")[3]);
+      const order = db.query("SELECT customer_name, phone, address, payment_method, delivery_area, delivery_charge, total, order_notes FROM orders WHERE id = ?", [orderId]);
+      if (!order.length) return new Response("Order not found", { status: 404 });
+      const items = db.query("SELECT product_name, price, quantity FROM order_items WHERE order_id = ? ORDER BY id", [orderId]);
+      const row = order[0];
+      const itemRows = items.map(item => `<tr><td>${escapeHtml(item[0])}</td><td>${item[2]}</td><td>${Number(item[1]).toFixed(0)}</td></tr>`).join("");
+      return new Response(page(`Packing slip #${orderId}`, `<main class="print-slip"><h1>Spark Corner</h1><p>Packing slip · Order #${orderId}</p><hr><h2>${escapeHtml(row[0])}</h2><p>${escapeHtml(row[1])}<br>${escapeHtml(row[2])}</p><p>Delivery: ${escapeHtml(row[4] ?? "")} · ৳${Number(row[5] ?? 0).toFixed(0)}<br>Payment: ${escapeHtml(row[3])}</p><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead><tbody>${itemRows}</tbody></table><p><strong>Total: ৳${Number(row[6]).toFixed(0)}</strong></p>${row[7] ? `<p>Note: ${escapeHtml(row[7])}</p>` : ""}</main><script>window.print()</script>`), { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+
     if (url.pathname.startsWith("/admin/orders/") && request.method === "GET") {
       const denied = adminGuard(request);
       if (denied) return denied;
@@ -1198,6 +1339,11 @@ return redirect("/admin/products");
       if (!order.length) return new Response("Order not found", { status: 404 });
 
       const row = order[0];
+      const whatsappPhone = String(row[2]).replace(/\D/g, "").replace(/^0/, "880");
+      const delivery = db.query(
+        "SELECT delivery_area, subtotal, delivery_charge FROM orders WHERE id = ?",
+        [orderId]
+      )[0];
       const items = db.query(`
         SELECT product_name, price, quantity
         FROM order_items WHERE order_id = ? ORDER BY id
@@ -1228,17 +1374,21 @@ return redirect("/admin/products");
             <p>${escapeHtml(row[2])}</p>
             <p>${escapeHtml(row[3] ?? "")}</p>
             <p>${escapeHtml(row[4])}</p>
+            <p><a class="btn btn-small" target="_blank" rel="noreferrer" href="https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`Hello ${row[1]}, regarding your Spark Corner order #${orderId}.`)}">Message on WhatsApp</a></p>
             <hr>
             <p>Payment: <strong>${escapeHtml(row[5])}</strong></p>
+            <p>Delivery: <strong>${escapeHtml(delivery?.[0] ?? "Not recorded")}</strong></p>
+            <p>Delivery charge: <strong>${Number(delivery?.[2] ?? 0).toFixed(0)}</strong></p>
             <p>Total: <strong>৳${Number(row[7]).toFixed(0)}</strong></p>
             <p>Created: ${escapeHtml(row[8])}</p>
           </section>
-          <section class="panel">
-            <h2>Update status</h2>
+           <section class="panel">
+             <h2>Update status</h2>
             <form method="POST" action="/admin/orders/${orderId}/status">
               <label>Status<select name="status">${statusOptions}</select></label>
-              <button class="btn" type="submit">Save status</button>
-            </form>
+               <button class="btn" type="submit">Save status</button>
+             </form>
+             <p><a class="text-link" target="_blank" href="/admin/orders/${orderId}/print">Print packing slip</a></p>
           </section>
         </div>
         <section class="panel">

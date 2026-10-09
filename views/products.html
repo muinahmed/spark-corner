@@ -7,12 +7,18 @@
 
 <main class="container section">
   <div class="page-title">
-    <p class="eyebrow">Collection</p>
-    <h1>Shop</h1>
+    <p class="eyebrow">Beauty · skincare · jewellery</p>
+    <h1>Find your next favourite.</h1>
+    <p class="page-intro">Discover beauty essentials, skincare rituals, and jewellery made for every look.</p>
   </div>
 
   <form class="search-bar" method="GET" action="/products">
     <input name="q" value="{{SEARCH}}" placeholder="Search products...">
+    <input name="min_price" value="{{MIN_PRICE}}" type="number" min="0" placeholder="Min ৳">
+    <input name="max_price" value="{{MAX_PRICE}}" type="number" min="0" placeholder="Max ৳">
+    <input name="skin_concern" value="{{SKIN_CONCERN}}" placeholder="Skin concern">
+    <input name="material" value="{{MATERIAL}}" placeholder="Material">
+    <input name="design" value="{{DESIGN}}" placeholder="Shade / design">
     <button class="btn" type="submit">Search</button>
   </form>
 
