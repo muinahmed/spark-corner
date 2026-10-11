@@ -1,11 +1,12 @@
 <header class="site-header">
   <div class="container nav">
-    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <a class="brand" href="/" aria-label="SparkCorner home">Spark<span>Corner</span></a>
     <nav><a class="active" href="/products">Shop</a><a href="/#about">About</a><a href="/#contact">Contact</a><a class="cart-link" href="/cart">Cart</a></nav>
   </div>
 </header>
+<nav class="mobile-bottom-nav" aria-label="Mobile navigation"><a class="mobile-home" href="/">Home</a><a class="mobile-shop active" href="/products">Shop</a><a class="mobile-cart" href="/cart">Cart</a></nav>
 
-<main class="container section">
+<main id="main-content" class="container section">
   <a class="back-link" href="/products">← Back to shop</a>
   <div class="detail-grid">
     <div class="product-gallery">
@@ -18,6 +19,7 @@
       <div class="detail-price">৳{{PRICE}}</div>
       <p class="stock">{{STOCK_TEXT}}</p>
       <p class="description">{{DESCRIPTION}}</p>
+      {{PRODUCT_DETAILS}}
       <form class="add-form" method="POST" action="/cart/add">
         <input type="hidden" name="product_id" value="{{PRODUCT_ID}}">
         {{VARIANT}}
@@ -28,6 +30,7 @@
       </form>
     </div>
   </div>
+  {{RELATED_PRODUCTS}}
 </main>
 
 <footer><div class="container">© Spark Corner</div></footer>
@@ -42,4 +45,16 @@
       }
     });
   });
+
+  document.querySelector("select[name='variant_id']")?.addEventListener("change", (event) => {
+    const image = event.target.selectedOptions[0]?.dataset.image;
+    const mainImage = document.querySelector(".detail-image img");
+    if (image && mainImage) mainImage.src = image;
+    const stock = Number(event.target.selectedOptions[0]?.dataset.stock || 0);
+    const quantity = document.querySelector("input[name='quantity']");
+    const button = document.querySelector(".add-form button");
+    if (quantity) { quantity.max = stock; if (Number(quantity.value) > stock) quantity.value = Math.max(stock, 1); }
+    if (button) { button.disabled = stock < 1; button.textContent = stock < 1 ? "Design out of stock" : "Add to cart"; }
+  });
+  document.querySelector("select[name='variant_id']")?.dispatchEvent(new Event("change"));
 </script>

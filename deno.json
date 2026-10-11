@@ -3,6 +3,6 @@
     "@db/sqlite": "jsr:@db/sqlite@^0.13.0"
   },
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-write main.js"
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi main.js"
   }
 }

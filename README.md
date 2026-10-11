@@ -4,7 +4,9 @@
 
 Open a terminal in this folder and run:
 
-    deno run --allow-net --allow-read --allow-write main.js
+    $env:ADMIN_USERNAME="admin"
+    $env:ADMIN_PASSWORD="choose-a-long-unique-password"
+    deno task start
 
 Or:
 
@@ -19,11 +21,21 @@ Then open:
 URL:
     http://localhost:8000/admin/login
 
-Development credentials:
-    Username: admin
-    Password: admin123
+Credentials are required environment variables; they are not stored in the code.
 
-Change these in `main.js` before using the site publicly.
+    ADMIN_USERNAME=your-admin-username
+    ADMIN_PASSWORD=a-long-unique-password
+
+For local development, copy `.env.example` to `.env`, then run `deno task --env-file=.env start`. Do not commit `.env`.
+
+## Railway deployment
+
+1. Add a Railway Volume mounted at `/app/data`.
+2. Set `DATA_DIR=/app/data` so orders and uploaded product images persist after deployments.
+3. Set `ADMIN_USERNAME` and a long, unique `ADMIN_PASSWORD` in Railway Variables.
+4. Railway provides `PORT` automatically. The app reads it and falls back to `8000` locally.
+
+Bundled storefront images, including the hero banner, are always served from `./public/images`. Uploaded product images are served from `DATA_DIR/uploads/products`.
 
 ## Features
 

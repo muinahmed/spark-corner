@@ -1,23 +1,30 @@
 <header class="site-header">
   <div class="container nav">
-    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <a class="brand" href="/" aria-label="SparkCorner home">Spark<span>Corner</span></a>
     <nav><a class="active" href="/products">Shop</a><a href="/#about">About</a><a href="/#contact">Contact</a><a class="cart-link" href="/cart">Cart</a></nav>
   </div>
 </header>
+<nav class="mobile-bottom-nav" aria-label="Mobile navigation"><a class="mobile-home" href="/">Home</a><a class="mobile-shop active" href="/products">Shop</a><a class="mobile-cart" href="/cart">Cart</a></nav>
 
-<main class="container section">
+<main id="main-content" class="container section">
   <div class="page-title">
-    <p class="eyebrow">Collection</p>
-    <h1>Shop</h1>
+    <p class="eyebrow">Beauty · skincare · jewellery</p>
+    <h1>Find your next favourite.</h1>
+    <p class="page-intro">Discover beauty essentials, skincare rituals, and jewellery made for every look.</p>
   </div>
 
-  <form class="search-bar" method="GET" action="/products">
-    <input name="q" value="{{SEARCH}}" placeholder="Search products...">
+  <form class="search-bar product-filters" method="GET" action="/products">
+    <input name="q" value="{{SEARCH}}" placeholder="Search products..." aria-label="Search products">
+    <input name="min_price" value="{{MIN_PRICE}}" type="number" min="0" inputmode="decimal" placeholder="Min ৳" aria-label="Minimum price">
+    <input name="max_price" value="{{MAX_PRICE}}" type="number" min="0" inputmode="decimal" placeholder="Max ৳" aria-label="Maximum price">
+    <input name="skin_concern" value="{{SKIN_CONCERN}}" placeholder="Skin concern" aria-label="Skin concern">
+    <input name="material" value="{{MATERIAL}}" placeholder="Material" aria-label="Material">
+    <input name="design" value="{{DESIGN}}" placeholder="Shade / design" aria-label="Shade or design">
     <button class="btn" type="submit">Search</button>
   </form>
 
-  <div class="category-links">
-    <a href="/products">All</a>
+  <div class="category-browser" aria-label="Browse by category">
+    <a class="category-all" href="/products">All products</a>
     {{CATEGORIES}}
   </div>
 

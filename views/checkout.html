@@ -1,19 +1,35 @@
 <header class="site-header">
   <div class="container nav">
-    <a class="brand" href="/">Spark <span>Corner</span></a>
+    <a class="brand" href="/" aria-label="SparkCorner home">Spark<span>Corner</span></a>
     <nav><a href="/products">Shop</a><a href="/#about">About</a><a href="/#contact">Contact</a><a class="cart-link" href="/cart">Cart</a></nav>
   </div>
 </header>
+<nav class="mobile-bottom-nav" aria-label="Mobile navigation"><a class="mobile-home" href="/">Home</a><a class="mobile-shop" href="/products">Shop</a><a class="mobile-cart active" href="/cart">Cart</a></nav>
 
-<main class="container section">
-  <div class="page-title"><p class="eyebrow">Almost there</p><h1>Checkout</h1></div>
+<main id="main-content" class="container section">
+  <div class="page-title"><p class="eyebrow">Almost there</p><h1>Your order, made simple.</h1><p class="page-intro">Enter your delivery details and we’ll take it from here.</p></div>
   <div class="checkout-grid">
     <form class="panel" method="POST" action="/checkout">
       <h2>Your details</h2>
       <label>Full name *<input name="customer_name" required></label>
       <label>Phone *<input name="phone" required></label>
+      <label>Confirm phone *<input name="phone_confirmation" inputmode="tel" required></label>
       <label>Email<input type="email" name="email"></label>
       <label>Delivery address *<textarea name="address" required></textarea></label>
+      <label>District / city *
+        <select name="district" required>
+          <option value="" disabled selected>Select your district or city</option>
+          {{DISTRICT_OPTIONS}}
+        </select>
+      </label>
+      <label>Delivery area *
+        <select name="delivery_area" required>
+          <option value="Inside Dhaka">Inside Dhaka — ৳70</option>
+          <option value="Outside Dhaka">Outside Dhaka — ৳130</option>
+        </select>
+      </label>
+      <p class="muted">Your delivery charge is included in the final total.</p>
+      <label>Order note <textarea name="order_notes" placeholder="Colour preference, delivery instructions, or a gift note"></textarea></label>
       <label>Payment method *
         <select name="payment_method" required>
           <option value="Cash on Delivery">Cash on Delivery</option>
@@ -27,9 +43,25 @@
     <aside class="panel">
       <h2>Your order</h2>
       <ul class="order-list">{{ITEMS}}</ul>
+      <div class="checkout-subtotal"><span>Subtotal</span><strong>৳{{SUBTOTAL}}</strong></div>
+      <p class="delivery-note">Delivery: ৳70 inside Dhaka · ৳130 outside Dhaka</p>
+      <div class="checkout-total"><span>Total</span><strong id="checkout-total" data-subtotal="{{SUBTOTAL}}">৳{{SUBTOTAL}}</strong></div>
       <div class="total-line"><span>Total</span><strong>৳{{TOTAL}}</strong></div>
     </aside>
   </div>
 </main>
+
+<script>
+  const deliveryArea = document.querySelector("select[name='delivery_area']");
+  const total = document.querySelector("#checkout-total");
+  const updateTotal = () => {
+    if (!deliveryArea || !total) return;
+    const delivery = deliveryArea.value === "Inside Dhaka" ? 70 : 130;
+    const subtotal = Number.parseFloat(total.dataset.subtotal);
+    total.textContent = Number.isFinite(subtotal) ? `৳${subtotal + delivery}` : "Total unavailable";
+  };
+  deliveryArea?.addEventListener("change", updateTotal);
+  updateTotal();
+</script>
 
 <footer><div class="container">© Spark Corner</div></footer>
